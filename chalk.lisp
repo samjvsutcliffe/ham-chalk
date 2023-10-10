@@ -201,7 +201,7 @@
                                       (magicl:from-list (list (magicl:tref p 0 0)
                                                               (magicl:tref p 1 0)) '(2 1))
                                       normal
-                                      (magicl:from-list (list shelf-length 0d0)
+                                      (magicl:from-list (list shelf-length soil-boundary)
                                                         '(2 1) :type 'double-float))
                                      1d0)
                                  )))
