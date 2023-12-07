@@ -1,5 +1,13 @@
+(restrict-compiler-policy 'speed 3 3)
+(restrict-compiler-policy 'debug 0 0)
+(restrict-compiler-policy 'safety 0 0)
+(setf *block-compile-default* t)
 (ql:quickload :cl-mpm-worker)
 (in-package :cl-mpm-worker)
+(ql:quickload :cl-mpm)
+(ql:quickload :cl-mpm/setup)
+(ql:quickload :cl-mpm/particle)
+(ql:quickload :cl-mpm/mpi)
 ;(ql:quickload "cl-mpm/examples/slump")
 ;(require 'cl-mpm-worker)
 
