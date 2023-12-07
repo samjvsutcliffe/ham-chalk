@@ -26,8 +26,7 @@
                (mapcar (lambda (x) (* x e-scale)) size)
                #'cl-mpm/shape-function:make-shape-function-bspline
                ;; 'cl-mpm::mpm-sim-usf
-               'cl-mpm/damage::mpm-sim-damage
-               ;'cl-mpm/mpi::mpm-sim-mpi-nodes
+               'cl-mpm/damage::mpm-sim-damage-nd-2
                ))
          (h (cl-mpm/mesh:mesh-resolution (cl-mpm:sim-mesh sim)))
          (h-x (/ h 1d0))
@@ -48,28 +47,34 @@
                 (mapcar (lambda (e) (* e e-scale mp-scale)) block-size)
                 density
                 ;; 'cl-mpm/particle::particle-elastic
-                'cl-mpm/particle::particle-chalk-brittle
+                ;; 'cl-mpm/particle::particle-chalk-brittle
+                'cl-mpm/particle::particle-chalk-delayed
+                ;; 'cl-mpm/particle::particle-limestone
                 ;; 'cl-mpm/particle::particle-mc
                 ;; 'cl-mpm/particle::particle-vm
                 :E 1d9
-                :nu 0.2d0
+                :nu 0.35d0
                 ;; :psi (* 40d0 (/ pi 180))
                 ;; :phi (* 00d0 (/ pi 180))
                 ;; :c 0.4d6
 
-                :rho 1d8
+                :rho 1d6
+                :enable-plasticity nil
 
                 :coheasion 1d5
                 :friction-angle 40d0
 
-                :fracture-energy 1000d0
-                :initiation-stress 1d5
+                :fracture-energy 5000d0
+                :initiation-stress 400d3
+                :delay-time 1d3
+                ;; :compression-ratio 8d0
 
-                :damage-rate 1d-5
-                :critical-damage 0.90d0
-                :local-length 10d0
-                ;:local-length-damaged 20d0
-                :local-length-damaged 1d-5
+
+                :critical-damage 1d0;0.999d0
+                :local-length 20d0
+                :local-length-damaged 20d0
+                ;; :local-length-damaged 1d0
+                ;; :local-length-damaged 1d0
 
                 :gravity -9.8d0
                 :gravity-axis (cl-mpm/utils:vector-from-list '(0d0 1d0 0d0))
@@ -77,14 +82,16 @@
       (setf (cl-mpm:sim-allow-mp-split sim) t)
       (setf (cl-mpm::sim-enable-damage sim) nil)
       (setf (cl-mpm::sim-nonlocal-damage sim) t)
-      (setf (cl-mpm::sim-enable-fbar sim) t)
-      (setf (cl-mpm::sim-allow-mp-damage-removal sim) nil)
+      (setf (cl-mpm::sim-enable-fbar sim) nil)
+      (setf (cl-mpm::sim-allow-mp-damage-removal sim) t)
       (setf (cl-mpm::sim-mp-damage-removal-instant sim) nil)
       (setf (cl-mpm::sim-mass-filter sim) 1d-15)
-
-      (let ((ms 1d4))
+      (let ((ms 1d5))
         (setf (cl-mpm::sim-mass-scale sim) ms)
-        (setf (cl-mpm:sim-damping-factor sim) (* 1d-3 ms)))
+        ;; (setf (cl-mpm:sim-damping-factor sim) (* 1d-2 density ms))
+        ;; (setf (cl-mpm:sim-damping-factor sim) 10.0d0)
+        (setf (cl-mpm:sim-damping-factor sim) (* 1d-2 ms))
+        )
 
       (dotimes (i 0)
         (dolist (dir (list :x :y))
@@ -99,7 +106,7 @@
                      200
                      )
                   (> (magicl:tref (cl-mpm/particle:mp-position mp) 1 0)
-                     10
+                     20
                      )
                   )
                dir
@@ -119,12 +126,44 @@
              (lambda (i) (cl-mpm/bc::make-bc-fixed i '(0 nil nil)))
              (lambda (i) (cl-mpm/bc::make-bc-fixed i '(0 nil nil)))
              (lambda (i) (cl-mpm/bc::make-bc-fixed i '(nil 0 nil)))
-             (lambda (i) (cl-mpm/bc::make-bc-fixed i '(0 0 nil)))
+             (lambda (i) (cl-mpm/bc::make-bc-fixed i '(nil 0 nil)))
              ;; (lambda (i) nil)
              ;; (lambda (i) nil)
              (lambda (i) (cl-mpm/bc::make-bc-fixed i '(nil nil 0)))
              (lambda (i) (cl-mpm/bc::make-bc-fixed i '(nil nil 0)))
             ))
+
+      (defparameter *floor-bc*
+        (cl-mpm/penalty::make-bc-penalty-point-normal
+         sim
+         (cl-mpm/utils:vector-from-list '(0d0 1d0 0d0))
+         (cl-mpm/utils:vector-from-list (list 00d0 (+ h-y) 0d0))
+         (* density 1d5)
+         0.9d0
+         ;; 1d1
+         ))
+
+      ;; (setf (cl-mpm::sim-bcs-force-list sim)
+      ;;       (list
+      ;;        (cl-mpm/bc:make-bcs-from-list
+      ;;         (list
+      ;;          *floor-bc*
+      ;;          ))))
+
+      ;; (let* ((terminus-size (second block-size))
+      ;;        (ocean-y (* terminus-size 1.0d0)))
+      ;;   (setf (cl-mpm::sim-bcs-force-list sim)
+      ;;         (list
+      ;;          (cl-mpm/bc:make-bcs-from-list
+      ;;           (list
+      ;;            (cl-mpm/buoyancy::make-bc-buoyancy-clip
+      ;;             sim
+      ;;             ocean-y
+      ;;             1000d0
+      ;;             (lambda (pos datum)
+      ;;               t)
+      ;;             ))))))
+
       sim)))
 
 (defparameter *sim* nil)
@@ -142,12 +181,12 @@
   ;;   (defparameter *sim* (setup-test-column '(16 16) '(8 8)  '(0 0) *refine* mps-per-dim)))
   ;; (defparameter *sim* (setup-test-column '(1 1 1) '(1 1 1) 1 1))
 
-  (let* ((mesh-size 5)
+(let* ((mesh-size 10)
          (mps-per-cell 2)
          (shelf-height 100)
-         (soil-boundary 0)
-         (shelf-aspect 3)
-         (runout-aspect 4)
+         (soil-boundary 100)
+         (shelf-aspect 2)
+         (runout-aspect 1)
          (shelf-length (* shelf-height shelf-aspect))
          (domain-length (+ shelf-length (* runout-aspect shelf-height)))
          (shelf-height (+ shelf-height soil-boundary))
@@ -174,8 +213,17 @@
                                       (magicl:from-list (list shelf-length soil-boundary)
                                                         '(2 1) :type 'double-float))
                                      1d0)
-                                 ))))
-  ;(loop for mp across (cl-mpm:sim-mps *sim*)
+                                 )))
+    ;; (cl-mpm/setup::damage-sdf *sim* (lambda (p) (cl-mpm/setup::line-sdf
+    ;;                                              (magicl:from-list (list (magicl:tref p 0 0)
+    ;;                                                                      (magicl:tref p 1 0)) '(2 1))
+    ;;                                              (list (- shelf-length (* 0.5 shelf-height)) shelf-height)
+    ;;                                              (list shelf-length soil-boundary)
+    ;;                                              30d0
+    ;;                                              )) 1.00d0)
+    )
+
+    ;(loop for mp across (cl-mpm:sim-mps *sim*)
   ;                 do (setf (cl-mpm/particle::mp-damage mp) (random 0.01d0) ))
   (format t "MPs: ~D~%" (length (cl-mpm:sim-mps *sim*)))
   (loop for f in (uiop:directory-files (uiop:merge-pathnames* "./outframes/")) do (uiop:delete-file-if-exists f))
@@ -188,7 +236,7 @@
   (cl-mpm/output:save-vtk-mesh (merge-pathnames "output/mesh.vtk")
                           *sim*)
 
-  (let* ((target-time 1d1)
+  (let* ((target-time 1d3)
          (dt (cl-mpm:sim-dt *sim*))
          (substeps (floor target-time dt))
          (dt-scale 1d0))
@@ -205,8 +253,9 @@
                    (progn
                      (when (= steps 10)
                        (setf (cl-mpm::sim-enable-damage *sim*) t)
-                       (let ((ms (cl-mpm::sim-mass-scale *sim*)))
-                         (setf (cl-mpm:sim-damping-factor *sim*) (* 1d-3 ms))))
+                       ;; (let ((ms (cl-mpm::sim-mass-scale *sim*)))
+                       ;;   (setf (cl-mpm:sim-damping-factor *sim*) (* 1d-3 ms)))
+                       )
                      (format t "Step ~d ~%" steps)
                      (cl-mpm/output:save-vtk (merge-pathnames (format nil "output/sim_~5,'0d.vtk" *sim-step*)) *sim*)
                      (time
@@ -222,7 +271,13 @@
 (defun mpi-loop ()
   (let ((rank (cl-mpi:mpi-comm-rank)))
     (setup :undercut 0d0)
-    (setf (cl-mpm/mpi::mpm-sim-mpi-domain-count *sim*) (list (cl-mpi:mpi-comm-size) 1 1))
+
+    (let ((dsize (floor (sqrt (cl-mpi:mpi-comm-size)))))
+      (setf (cl-mpm/mpi::mpm-sim-mpi-domain-count *sim*) (list dsize dsize 1)))
+
+    (let ((dhalo-size (* 4 (cl-mpm/particle::mp-local-length (aref (cl-mpm:sim-mps *sim*) 0)))))
+      (setf (cl-mpm/mpi::mpm-sim-mpi-halo-damage-size *sim*) dhalo-size))
+
     (when (= rank 0)
       (format t "Sim MPs: ~a~%" (length (cl-mpm:sim-mps *sim*)))
       (format t "Decompose~%"))
@@ -260,10 +315,11 @@
                 while *run-sim*
                 do
                    (progn
-                     (when (= steps 5)
+                     (when (= steps 10)
                        (setf (cl-mpm::sim-enable-damage *sim*) t)
-                       (let ((ms (cl-mpm::sim-mass-scale *sim*)))
-                         (setf (cl-mpm:sim-damping-factor *sim*) (* 1d-3 ms))))
+                       ;; (let ((ms (cl-mpm::sim-mass-scale *sim*)))
+                       ;;   (setf (cl-mpm:sim-damping-factor *sim*) (* 1d-3 ms)))
+                       )
                      (when (= rank 0)
                        (format t "Step ~d ~%" steps))
                      ;(cl-mpm/output:save-vtk (merge-pathnames (format nil "output/sim_~5,'0d.vtk" *sim-step*)) *sim*)
