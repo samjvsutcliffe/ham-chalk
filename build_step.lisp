@@ -24,6 +24,14 @@
 ;  (print "hello")
 ;   (lfarm-server:start-server "127.0.0.1" 11111)
 ;  )
+
+(ql:quickload "magicl")
+(ql:quickload "cl-mpm")
+(asdf:compile-system :cl-mpm :force T)
+(ql:quickload "cl-mpm/examples/chalk")
+(ql:quickload "cl-mpm/mpi")
+;(in-package :cl-mpm/examples/chalk)
+
 (sb-ext:save-lisp-and-die
    "mpi-worker"
     :executable t
