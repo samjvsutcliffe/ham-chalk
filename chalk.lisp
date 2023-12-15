@@ -1,16 +1,17 @@
-(sb-ext:restrict-compiler-policy 'speed 3 3)
-(sb-ext:restrict-compiler-policy 'debug 0 0)
-(sb-ext:restrict-compiler-policy 'safety 0 0)
-(setf *block-compile-default* t)
+;(sb-ext:restrict-compiler-policy 'speed 3 3)
+;(sb-ext:restrict-compiler-policy 'debug 0 0)
+;(sb-ext:restrict-compiler-policy 'safety 0 0)
+;(setf *block-compile-default* t)
 ;(sb-ext:restrict-compiler-policy 'speed  0 0)
 ;(sb-ext:restrict-compiler-policy 'debug  3 3)
 ;(sb-ext:restrict-compiler-policy 'safety 3 3)
-(setf *load-verbose* nil)
-(setf *load-print* nil)
-(setf *compile-verbose* nil)
-(setf *compile-print* nil)
+;(setf *load-verbose* nil)
+;(setf *load-print* nil)
+;(setf *compile-verbose* nil)
+;(setf *compile-print* nil)
 
 
+(ql:quickload "cl-mpm/examples/chalk")
 (in-package :cl-mpm/examples/chalk)
 ;(ql:quickload "magicl")
 ;(ql:quickload "cl-mpm")
@@ -197,7 +198,7 @@
   ;;   (defparameter *sim* (setup-test-column '(16 16) '(8 8)  '(0 0) *refine* mps-per-dim)))
   ;; (defparameter *sim* (setup-test-column '(1 1 1) '(1 1 1) 1 1))
   (format t "Setup ~%")
-    (let* ((mesh-size 2.5)
+    (let* ((mesh-size 25)
            (mps-per-cell 2)
            (shelf-height 100)
            (soil-boundary 50)
@@ -251,9 +252,9 @@
   (cl-mpm/output:save-vtk-mesh (merge-pathnames "output/mesh.vtk")
                           *sim*)
 
-  (cl-mpm/output::save-simulation-parameters #p"output/settings.json"
-                                            *sim*
-                                            (list :dt target-time))
+  &allow-other-keys;; (cl-mpm/output::save-simulation-parameters #p"output/settings.json"
+  ;;                                           *sim*
+  ;;                                           (list :dt target-time))
 
   (let* ((target-time 1d2)
          (dt (cl-mpm:sim-dt *sim*))
@@ -299,8 +300,8 @@
     (let ((dsize (floor (cl-mpi:mpi-comm-size))))
       (setf (cl-mpm/mpi::mpm-sim-mpi-domain-count *sim*) (list dsize 1 1)))
 
-    ;(let ((dhalo-size (* 4 (cl-mpm/particle::mp-local-length (aref (cl-mpm:sim-mps *sim*) 0)))))
-    ;  (setf (cl-mpm/mpi::mpm-sim-mpi-halo-damage-size *sim*) dhalo-size))
+    (let ((dhalo-size (* 4 (cl-mpm/particle::mp-local-length (aref (cl-mpm:sim-mps *sim*) 0)))))
+     (setf (cl-mpm/mpi::mpm-sim-mpi-halo-damage-size *sim*) dhalo-size))
 
     (when (= rank 0)
       (format t "Sim MPs: ~a~%" (length (cl-mpm:sim-mps *sim*)))
@@ -314,8 +315,6 @@
     (when (= rank 0)
       (format t "Done mpi~%"))
     )
-  ;(cl-mpi:mpi-finalize)
-  ;(sb-ext:quit)
   )
 
 (defun run-mpi ()
@@ -412,11 +411,12 @@
 
 (setf lparallel:*kernel* (lparallel:make-kernel 16 :name "custom-kernel"))
 ;(defparameter *run-sim* nil)
-;(setup)
+(setup)
 ;(format t "MP count:~D~%" (length (cl-mpm:sim-mps *sim*)))
-;(run)
+(run)
 
 (format t "Running~%")
 ;(setf lparallel:*kernel* (lparallel:make-kernel 32 :name "custom-kernel"))
-(mpi-loop)
+;; (mpi-loop)
+
 
