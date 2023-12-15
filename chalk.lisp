@@ -176,7 +176,7 @@
       mp
     (let ((rho_0 0.2d6)
           (rho_1 0.0020d6)
-          (soft 5d0))
+          (soft 5d-1))
       (setf c (max rho_1
                      (* rho_0 (exp (- (* soft ps)))))))
     )
@@ -197,7 +197,7 @@
   ;;   (defparameter *sim* (setup-test-column '(16 16) '(8 8)  '(0 0) *refine* mps-per-dim)))
   ;; (defparameter *sim* (setup-test-column '(1 1 1) '(1 1 1) 1 1))
   (format t "Setup ~%")
-    (let* ((mesh-size 5)
+    (let* ((mesh-size 2.5)
            (mps-per-cell 2)
            (shelf-height 100)
            (soil-boundary 50)
@@ -299,8 +299,8 @@
     (let ((dsize (floor (cl-mpi:mpi-comm-size))))
       (setf (cl-mpm/mpi::mpm-sim-mpi-domain-count *sim*) (list dsize 1 1)))
 
-    (let ((dhalo-size (* 4 (cl-mpm/particle::mp-local-length (aref (cl-mpm:sim-mps *sim*) 0)))))
-      (setf (cl-mpm/mpi::mpm-sim-mpi-halo-damage-size *sim*) dhalo-size))
+    ;(let ((dhalo-size (* 4 (cl-mpm/particle::mp-local-length (aref (cl-mpm:sim-mps *sim*) 0)))))
+    ;  (setf (cl-mpm/mpi::mpm-sim-mpi-halo-damage-size *sim*) dhalo-size))
 
     (when (= rank 0)
       (format t "Sim MPs: ~a~%" (length (cl-mpm:sim-mps *sim*)))
