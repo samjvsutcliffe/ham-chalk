@@ -300,8 +300,8 @@
     (let ((dsize (floor (cl-mpi:mpi-comm-size))))
       (setf (cl-mpm/mpi::mpm-sim-mpi-domain-count *sim*) (list dsize 1 1)))
 
-    (let ((dhalo-size (* 4 (cl-mpm/particle::mp-local-length (aref (cl-mpm:sim-mps *sim*) 0)))))
-     (setf (cl-mpm/mpi::mpm-sim-mpi-halo-damage-size *sim*) dhalo-size))
+    ;; (let ((dhalo-size (* 4 (cl-mpm/particle::mp-local-length (aref (cl-mpm:sim-mps *sim*) 0)))))
+    ;;  (setf (cl-mpm/mpi::mpm-sim-mpi-halo-damage-size *sim*) dhalo-size))
 
     (when (= rank 0)
       (format t "Sim MPs: ~a~%" (length (cl-mpm:sim-mps *sim*)))
@@ -334,9 +334,9 @@
       (setf substeps substeps-e))
     (when (= rank 0)
       (format t "Substeps ~D~%" substeps)
- 	(cl-mpm/output::save-simulation-parameters #p"output/settings.json"
-                                            *sim*
-                                            (list :dt target-time)) )
+ 	    (cl-mpm/output::save-simulation-parameters #p"output/settings.json"
+                                             *sim*
+                                             (list :dt target-time)) )
     (time (loop for steps from 0 to 500
                 while *run-sim*
                 do
@@ -360,7 +360,8 @@
                      (incf *sim-step*)
                      ;(plot *sim*)
                      (swank.live:update-swank)
-                     ))))
+                     )))
+    )
   (cl-mpm/output:save-vtk (merge-pathnames (format nil "output/sim_~5,'0d.vtk" *sim-step*)) *sim*))
 
 ;(defun run-undercut ()
@@ -411,12 +412,12 @@
 
 (setf lparallel:*kernel* (lparallel:make-kernel 16 :name "custom-kernel"))
 ;(defparameter *run-sim* nil)
-(setup)
+;(setup)
 ;(format t "MP count:~D~%" (length (cl-mpm:sim-mps *sim*)))
-(run)
+;(run)
 
 (format t "Running~%")
 ;(setf lparallel:*kernel* (lparallel:make-kernel 32 :name "custom-kernel"))
-;; (mpi-loop)
+(mpi-loop)
 
 
