@@ -64,9 +64,9 @@
                 :enable-plasticity t
                 :ft 200d3
                 :friction-angle 40d0
-                :fracture-energy 5000d0
+                :fracture-energy 100d0
                 :initiation-stress 200d3
-                :delay-time 1d4
+                :delay-time 1d3
                 :critical-damage 1d0;0.999d0
                 :local-length 5d0
                 :local-length-damaged 5d0
@@ -203,12 +203,12 @@
   ;;   (defparameter *sim* (setup-test-column '(16 16) '(8 8)  '(0 0) *refine* mps-per-dim)))
   ;; (defparameter *sim* (setup-test-column '(1 1 1) '(1 1 1) 1 1))
   (format t "Setup ~%")
-    (let* ((mesh-size 20)
+    (let* ((mesh-size 2.5)
            (mps-per-cell 2)
            (shelf-height 100)
-           (soil-boundary 40)
+           (soil-boundary 100)
            (shelf-aspect 2)
-           (runout-aspect 3)
+           (runout-aspect 2)
            (shelf-length (* shelf-height shelf-aspect))
            (domain-length (+ shelf-length (* runout-aspect shelf-height)))
            (shelf-height (+ shelf-height soil-boundary))
@@ -308,8 +308,13 @@
 
     (let ((mp (aref (cl-mpm:sim-mps *sim*) 0)))
       (when (slot-exists-p mp 'cl-mpm/particle::local-length)
-        (let ((dhalo-size (* 4 (cl-mpm/particle::mp-local-length (aref (cl-mpm:sim-mps *sim*) 0)))))
+        (let ((dhalo-size (* 2 (cl-mpm/particle::mp-local-length (aref (cl-mpm:sim-mps *sim*) 0)))))
+          ;(when (= rank 0)
+          ;  (format t "Min size ~F length scale ~F~%" (reduce #'min (mapcar #'-  (cl-mpm/mpi::mpm-sim-mpi-domain-bounds *sim*))) dhalo-size)
+          ;  
+          ;  )
           (setf (cl-mpm/mpi::mpm-sim-mpi-halo-damage-size *sim*) dhalo-size))))
+
 
     (when (= rank 0)
       (format t "Sim MPs: ~a~%" (length (cl-mpm:sim-mps *sim*)))
@@ -357,7 +362,7 @@
  	    (cl-mpm/output::save-simulation-parameters #p"output/settings.json"
                                              *sim*
                                              (list :dt target-time)) )
-    (time (loop for steps from 0 to 500
+    (time (loop for steps from 0 to 200
                 while *run-sim*
                 do
                    (progn
@@ -380,7 +385,8 @@
                        (setf *t* (+ *t* (cl-mpm::sim-dt *sim*)))))
 
                      (let ((energy-estimate (estimate-energy-crit *sim*)))
-                       (format t "Energy estimate: ~E~%" energy-estimate)
+                       (when (= rank 0)
+                         (format t "Energy estimate: ~E~%" energy-estimate))
                        (when (>= steps 5)
                          (when (> energy-estimate 1d-11)
                              (progn
@@ -397,7 +403,7 @@
                              ;;    (cl-mpm::sim-mass-scale *sim*) mass-scale))
                              )
                          (setf (cl-mpm:sim-damping-factor *sim*)
-                               1d-1)))
+                               1d-4)))
                      (multiple-value-bind (dt-e substeps-e) (cl-mpm:calculate-adaptive-time *sim* target-time :dt-scale dt-scale)
                       (when (= rank 0)
                         (format t "CFL dt estimate: ~f~%" dt-e)
@@ -456,7 +462,7 @@
 ;(setf lparallel:*kernel* (lparallel:make-kernel 8 :name "custom-kernel"))
 ;(test-undercut)
 
-(setf lparallel:*kernel* (lparallel:make-kernel 2 :name "custom-kernel"))
+(setf lparallel:*kernel* (lparallel:make-kernel 16 :name "custom-kernel"))
 ;(defparameter *run-sim* nil)
 ;(setup)
 ;(format t "MP count:~D~%" (length (cl-mpm:sim-mps *sim*)))
