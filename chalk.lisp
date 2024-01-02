@@ -1,6 +1,7 @@
 (sb-ext:restrict-compiler-policy 'speed 3 3)
 (sb-ext:restrict-compiler-policy 'debug 0 0)
 (sb-ext:restrict-compiler-policy 'safety 0 0)
+;; (ql:quickload :cl-mpm/examples/chalk)
 ;(setf *block-compile-default* t)
 ;(sb-ext:restrict-compiler-policy 'speed  0 0)
 ;(sb-ext:restrict-compiler-policy 'debug  3 3)
@@ -11,7 +12,7 @@
 ;(setf *compile-print* nil)
 
 
-;(ql:quickload "cl-mpm/examples/chalk")
+(ql:quickload "cl-mpm/examples/chalk")
 (in-package :cl-mpm/examples/chalk)
 ;(ql:quickload "magicl")
 ;(ql:quickload "cl-mpm")
@@ -258,7 +259,7 @@
   (cl-mpm/output:save-vtk-mesh (merge-pathnames "output/mesh.vtk")
                           *sim*)
 
-  &allow-other-keys;; (cl-mpm/output::save-simulation-parameters #p"output/settings.json"
+  ;; (cl-mpm/output::save-simulation-parameters #p"output/settings.json"
   ;;                                           *sim*
   ;;                                           (list :dt target-time))
 
