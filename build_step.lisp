@@ -9,7 +9,7 @@
 ;; (ql:quickload :cl-mpm)
 ;; (ql:quickload :cl-mpm/damage)
 ;; (ql:quickload :cl-mpm/mpi)
-(ql:quickload :cl-mpm/examples/chalk)
+(ql:quickload :cl-mpm/examples/joss)
 (ql:quickload :cl-mpm/mpi)
 (in-package :cl-mpm-worker)
 ;; (in-package :cl-mpm/examples/chalk)
