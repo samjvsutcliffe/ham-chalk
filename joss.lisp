@@ -164,27 +164,33 @@
     (setf *refine* (parse-integer (uiop:getenv "REFINE")))  
     ))
 
-(defun setup (&key (undercut 0d0))
-  ;; (let ((mps-per-dim 4))
-  ;;   (defparameter *sim* (setup-test-column '(16 16) '(8 8)  '(0 0) *refine* mps-per-dim)))
-  ;; (defparameter *sim* (setup-test-column '(1 1 1) '(1 1 1) 1 1))
-  (format t "Setup ~%")
-    (let* ((mesh-size 2.5)
-           (mps-per-cell 2)
-           (shelf-height 100)
-           (soil-boundary 20)
-           (shelf-aspect 2.0)
-           (runout-aspect 4.0)
-           (shelf-length (* shelf-height shelf-aspect))
-           (domain-length (+ shelf-length (* runout-aspect shelf-height)))
-           (shelf-height (+ shelf-height soil-boundary))
-           (offset (list 0 (* 0 mesh-size))))
+(defun setup ()
+  (let* ((mesh-size 0.25)
+         (mps-per-cell 2)
+         (shelf-height 15.4)
+         (soil-boundary 3)
+         (shelf-aspect 0.75)
+         (runout-aspect 0.25)
+         (shelf-length (* shelf-height shelf-aspect))
+         (domain-length (+ shelf-length (* runout-aspect shelf-height)))
+         (shelf-height (+ shelf-height soil-boundary))
+         (depth 400)
+         (offset (list 0 (* 0 mesh-size)
+                       ;; 0
+                       ))
+         )
     (defparameter *sim*
       (setup-test-column (list domain-length
-                               (+ shelf-height (* 10 mesh-size)))
-                         (list domain-length shelf-height)
+                               (+ shelf-height (* 5 mesh-size))
+                               ;; depth
+                               )
+                         (list domain-length shelf-height
+                               ;; depth
+                               )
                          offset
                          (/ 1d0 mesh-size) mps-per-cell))
+
+    ;;Refine around tip
     (dotimes (i 0)
       (dolist (dir (list :x
                          :y
@@ -195,50 +201,99 @@
            (when
                (and
                 (> (magicl:tref (cl-mpm/particle:mp-position mp) 0 0)
-                   (- shelf-length (* 0.5d0 shelf-height)))
+                   (- shelf-length
+                      3d0
+                      ;; (* 1d0 shelf-height)
+                      ))
                 (< (magicl:tref (cl-mpm/particle:mp-position mp) 0 0)
                    shelf-length)
                 (> (magicl:tref (cl-mpm/particle:mp-position mp) 1 0)
                    soil-boundary
                    )
+                (< (magicl:tref (cl-mpm/particle:mp-position mp) 1 0)
+                   (- shelf-height 7d0)
+                   )
                 )
              dir
              )))))
+    (loop for mp across (cl-mpm::sim-mps *sim*)
+          do (setf (cl-mpm/particle::mp-split-depth mp) 0))
 
-
-    (let* ((undercut-angle undercut)
+    (let* ((sloped-height (- (- shelf-height soil-boundary) 7d0))
+           (measured-angle 78d0)
+           (undercut-angle ;(- 82.5d0 90d0)
+             (- measured-angle 90d0)
+                           )
            (normal (magicl:from-list (list
                                       (cos (- (* pi (/ undercut-angle 180d0))))
-                                      (sin (- (* pi (/ undercut-angle 180d0))))) '(2 1))))
+                                      (sin (- (* pi (/ undercut-angle 180d0))))) '(2 1)))
+           (sloped-inflex-point
+             (magicl:from-list (list (- shelf-length (* (tan (- (* pi (/ undercut-angle 180d0)))) sloped-height))
+                                     soil-boundary)
+                               '(2 1) :type 'double-float)
+
+             )
+           )
       (cl-mpm/setup:remove-sdf *sim*
                                (lambda (p)
-                                 (if (> (magicl:tref p 1 0) soil-boundary)
-                                     (cl-mpm/setup::plane-point-sdf
-                                      (magicl:from-list (list (magicl:tref p 0 0)
-                                                              (magicl:tref p 1 0)) '(2 1))
-                                      normal
-                                      (magicl:from-list (list shelf-length soil-boundary)
-                                                        '(2 1) :type 'double-float))
-                                     1d0)
-                                 )))
-    ;; (cl-mpm/setup::damage-sdf *sim* (lambda (p) (cl-mpm/setup::line-sdf
-    ;;                                              (magicl:from-list (list (magicl:tref p 0 0)
-    ;;                                                                      (magicl:tref p 1 0)) '(2 1))
-    ;;                                              (list (- shelf-length (* 0.5 shelf-height)) shelf-height)
-    ;;                                              (list shelf-length soil-boundary)
-    ;;                                              30d0
-    ;;                                              )) 1.00d0)
-    )
+                                 (if (and
+                                      (> (magicl:tref p 1 0) soil-boundary))
+                                     (if (< (magicl:tref p 1 0) (+ soil-boundary sloped-height))
+                                         (cl-mpm/setup::plane-point-sdf
+                                          (magicl:from-list (list (magicl:tref p 0 0)
+                                                                  (magicl:tref p 1 0)) '(2 1))
+                                          normal
+                                          (magicl:from-list (list shelf-length soil-boundary)
+                                                            '(2 1) :type 'double-float))
 
-    ;(loop for mp across (cl-mpm:sim-mps *sim*)
-    ;               do (setf (cl-mpm/particle::mp-damage mp) (random 0.5d0) ))
-  (setf cl-mpm::*max-split-depth* 3)
-  (format t "MPs: ~D~%" (length (cl-mpm:sim-mps *sim*)))
-  (loop for f in (uiop:directory-files (uiop:merge-pathnames* "./outframes/")) do (uiop:delete-file-if-exists f))
-  (loop for f in (uiop:directory-files (uiop:merge-pathnames* "./output/")) do (uiop:delete-file-if-exists f))
-  (defparameter *run-sim* t)
-  (defparameter *t* 0)
-  (defparameter *sim-step* 0))
+                                         (cl-mpm/setup::plane-point-sdf
+                                          (magicl:from-list (list (magicl:tref p 0 0)
+                                                                  (magicl:tref p 1 0)) '(2 1))
+                                          (magicl:from-list (list 1d0 0d0) '(2 1)  :type 'double-float)
+                                          sloped-inflex-point)
+                                         )
+                                     1d0)
+                                 ))
+      )
+
+   
+     (let ((notch-height 0.5d0))
+       (cl-mpm/setup:remove-sdf *sim*
+                                (lambda (p)
+                                  (if t ;(< (abs (- (magicl:tref p 2 0) (* 0.5d0 depth))) 20d0)
+                                      (funcall
+                                       (cl-mpm/setup::rectangle-sdf
+                                        (list shelf-length (+ notch-height soil-boundary))
+                                        (list (* 2d0 notch-height) notch-height)
+                                        ) p)
+                                      1d0)
+                                  )))
+
+     (setf cl-mpm::*max-split-depth* 6)
+
+     ;; (let ((ratio 1.0d0))
+     ;;   (cl-mpm/setup::damage-sdf *sim* (lambda (p) (cl-mpm/setup::line-sdf
+     ;;                                                (magicl:from-list (list (magicl:tref p 0 0)
+     ;;                                                                        (magicl:tref p 1 0)) '(2 1))
+     ;;                                                (list (- shelf-length (* shelf-height ratio)) shelf-height)
+     ;;                                                (list shelf-length soil-boundary)
+     ;;                                                10d0
+     ;;                                                )) 1.0d0))
+     )
+    ;; (let ((upper-random-bound 0.5d0))
+    ;;   (loop for mp across (cl-mpm:sim-mps *sim*)
+    ;;         do (setf (cl-mpm/particle::mp-damage mp)
+    ;;                  (reduce #'*
+    ;;                          (loop for i from 0 to 2
+    ;;                                collect (random upper-random-bound))))))
+    (format t "MPs: ~D~%" (length (cl-mpm:sim-mps *sim*)))
+    (loop for f in (uiop:directory-files (uiop:merge-pathnames* "./outframes/")) do (uiop:delete-file-if-exists f))
+    (loop for f in (uiop:directory-files (uiop:merge-pathnames* "./output/")) do (uiop:delete-file-if-exists f))
+    (defparameter *run-sim* t)
+    (defparameter *t* 0)
+    (defparameter *oobf* 0)
+    (defparameter *energy* 0)
+    (defparameter *sim-step* 0))
 
 
 (defun run ()
