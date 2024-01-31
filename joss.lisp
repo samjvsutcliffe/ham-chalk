@@ -47,7 +47,7 @@
 
                 :critical-damage 1.0d0;0.999d0
                 :damage-domain-rate 0.9d0;This slider changes how GIMP update turns to uGIMP under damage
-                :local-length (* 0.25d0 (sqrt 7))
+                :local-length (* 0.050d0 (sqrt 7))
                 ;; :local-length-damaged (* 0.1d0 (sqrt 7))
                 ;; :local-length-damaged 1d0
                 :local-length-damaged 10d-10
@@ -165,14 +165,15 @@
     ))
 
 (defun setup ()
-  (let* ((mesh-size 0.5)
+  (let* ((mesh-size 0.10)
          (mps-per-cell 2)
-         (shelf-height 15.5)
-         (soil-boundary 3)
-         (shelf-aspect 2.0)
-         (runout-aspect 1.50)
+         (shelf-height 15.0)
+         (soil-boundary 2)
+         (shelf-aspect 0.5)
+         (runout-aspect 1.0)
          (shelf-length (* shelf-height shelf-aspect))
          (domain-length (+ shelf-length (* runout-aspect shelf-height)))
+         (shelf-height-true shelf-height)
          (shelf-height (+ shelf-height soil-boundary))
          (depth 400)
          (offset (list 0 (* 0 mesh-size)
@@ -202,6 +203,7 @@
                (and
                 (> (magicl:tref (cl-mpm/particle:mp-position mp) 0 0)
                    (- shelf-length
+                      ;; 3d0
                       (* 1d0 shelf-height)
                       ))
                 (< (magicl:tref (cl-mpm/particle:mp-position mp) 0 0)
@@ -209,9 +211,9 @@
                 (> (magicl:tref (cl-mpm/particle:mp-position mp) 1 0)
                    soil-boundary
                    )
-                ;(< (magicl:tref (cl-mpm/particle:mp-position mp) 1 0)
-                ;   (- shelf-height 7d0)
-                ;   )
+                ;; (< (magicl:tref (cl-mpm/particle:mp-position mp) 1 0)
+                ;;    (- shelf-height 7d0)
+                ;;    )
                 )
              dir
              )))))
@@ -253,10 +255,50 @@
                                          )
                                      1d0)
                                  ))
+      (let ((cut-height (* 0.0d0 shelf-height-true)))
+        (cl-mpm/setup::damage-sdf *sim*
+                                 (lambda (p)
+                                   (if t ;(< (abs (- (magicl:tref p 2 0) (* 0.5d0 depth))) 20d0)
+                                       (funcall
+                                        (cl-mpm/setup::rectangle-sdf
+                                         (list (- (magicl:tref sloped-inflex-point 0 0)
+                                                  (* 0.15d0 shelf-height-true)
+                                                  )
+                                               shelf-height)
+                                         (list (* 1.0d0 mesh-size) cut-height)
+                                         ) p)
+                                       1d0)
+                                   )))
+
+      )
+    (let* ((notched-depth 1.0d0)
+           (undercut-angle 45d0)
+           (normal (magicl:from-list (list
+                                      (cos (- (* pi (/ undercut-angle 180d0))))
+                                      (sin (- (* pi (/ undercut-angle 180d0))))) '(2 1)))
+           (sloped-inflex-point
+             (magicl:from-list (list
+                                (- shelf-length notched-depth)
+                                soil-boundary)
+                               '(2 1) :type 'double-float)
+
+             )
+           )
+      (cl-mpm/setup:remove-sdf *sim*
+                               (lambda (p)
+                                 (if (and
+                                      (> (magicl:tref p 1 0) soil-boundary))
+                                     (cl-mpm/setup::plane-point-sdf
+                                      (magicl:from-list (list (magicl:tref p 0 0)
+                                                              (magicl:tref p 1 0)) '(2 1))
+                                      normal
+                                      sloped-inflex-point)
+                                     1d0)
+                                 ))
       )
 
    
-     (let ((notch-height 0.5d0))
+     (let ((notch-height 0.0d0))
        (cl-mpm/setup:remove-sdf *sim*
                                 (lambda (p)
                                   (if t ;(< (abs (- (magicl:tref p 2 0) (* 0.5d0 depth))) 20d0)
@@ -267,8 +309,8 @@
                                         ) p)
                                       1d0)
                                   )))
-
-     (setf cl-mpm::*max-split-depth* 3)
+    
+     (setf cl-mpm::*max-split-depth* 6)
 
      ;; (let ((ratio 1.0d0))
      ;;   (cl-mpm/setup::damage-sdf *sim* (lambda (p) (cl-mpm/setup::line-sdf
