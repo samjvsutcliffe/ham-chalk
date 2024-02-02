@@ -37,17 +37,17 @@
 
                 :ft 200d3
                 :fc 500d3
-                :friction-angle 60d0
+                :friction-angle 50d0
 
                 :fracture-energy 3000d0
-                :initiation-stress 20d3
-                :delay-time 1d1
-                :ductility 4d0
+                :initiation-stress 80d3
+                :delay-time 1d2
+                :ductility 8d0
                 ;; :compression-ratio 8d0
 
                 :critical-damage 1.0d0;0.999d0
                 :damage-domain-rate 0.9d0;This slider changes how GIMP update turns to uGIMP under damage
-                :local-length (* 0.050d0 (sqrt 7))
+                :local-length (* 0.02d0 (sqrt 7))
                 ;; :local-length-damaged (* 0.1d0 (sqrt 7))
                 ;; :local-length-damaged 1d0
                 :local-length-damaged 10d-10
@@ -76,7 +76,7 @@
       ;; (cl-mpm/examples/tpb::calculate-ductility-param 1d9 200d0 1d0 200d3)
       (setf (cl-mpm:sim-allow-mp-split sim) t)
       (setf (cl-mpm::sim-enable-damage sim) nil)
-      (setf (cl-mpm::sim-nonlocal-damage sim) t)
+      (setf (cl-mpm::sim-nonlocal-damage sim) nil)
       (setf (cl-mpm::sim-enable-fbar sim) t)
       (setf (cl-mpm::sim-allow-mp-damage-removal sim) nil)
       (setf (cl-mpm::sim-mp-damage-removal-instant sim) nil)
@@ -165,11 +165,11 @@
     ))
 
 (defun setup ()
-  (let* ((mesh-size 0.10)
+  (let* ((mesh-size 0.25)
          (mps-per-cell 2)
-         (shelf-height 15.0)
+         (shelf-height 15.5)
          (soil-boundary 2)
-         (shelf-aspect 0.5)
+         (shelf-aspect 1.0)
          (runout-aspect 1.0)
          (shelf-length (* shelf-height shelf-aspect))
          (domain-length (+ shelf-length (* runout-aspect shelf-height)))
@@ -474,16 +474,35 @@
                          (setf (cl-mpm:sim-damping-factor *sim*) 0d-6))
                        (when (>= steps settle-steps)
                          (setf (cl-mpm::sim-enable-damage *sim*) t)  
-                         (when (> energy-estimate 1d-4)
+                         (if (> energy-estimate 1d-7)
                            (progn
                              (when (= rank 0)
                                (format t "Collapse timestep~%"))
-                             (setf
-                              target-time collapse-target-time
-                              (cl-mpm::sim-mass-scale *sim*) collapse-mass-scale))
-                           )
-                         ))
-
+                             (when (not (= target-time collapse-target-time))
+                                 (setf
+                                  target-time collapse-target-time
+                                  (cl-mpm::sim-mass-scale *sim*) collapse-mass-scale)
+                               ))
+                           (progn
+                             (when (= rank 0)
+                               (format t "Accelerate timestep~%"))
+                             ;(when (not (= target-time collapse-target-time))
+                             ;    (setf
+                             ;     target-time 1d0
+                             ;     (cl-mpm::sim-mass-scale *sim*) 1d4
+                             ;     ))
+                             
+                             )
+                           
+                           )))
+                     ;(let* ((dt-e (cl-mpm/setup::estimate-elastic-dt *sim* :dt-scale dt-scale))
+                     ;       (substep-e (floor target-time dt-e)))
+                     ;     (when (= rank 0)
+                     ;       (format t "CFL dt estimate: ~f~%" dt-e)
+                     ;       (format t "CFL step count estimate: ~D~%" substeps-e))
+                     ;     (setf substeps substeps-e
+                     ;           (cl-mpm:sim-dt *sim*) dt-e
+                     ;           ));)
                      (multiple-value-bind (dt-e substeps-e) (cl-mpm:calculate-adaptive-time *sim* target-time :dt-scale dt-scale)
                       (when (= rank 0)
                         (format t "CFL dt estimate: ~f~%" dt-e)
