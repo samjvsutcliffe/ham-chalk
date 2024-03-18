@@ -345,22 +345,38 @@
                                          )
                                      1d0)
                                  ))
-      (let ((cut-height (* 0.0d0 shelf-height-true)))
-        (cl-mpm/setup::damage-sdf *sim*
-                                 (lambda (p)
-                                   (if t ;(< (abs (- (magicl:tref p 2 0) (* 0.5d0 depth))) 20d0)
-                                       (funcall
-                                        (cl-mpm/setup::rectangle-sdf
-                                         (list (- (magicl:tref sloped-inflex-point 0 0)
-                                                  (* 0.15d0 shelf-height-true)
-                                                  )
-                                               shelf-height)
-                                         (list (* 1.5d0 mesh-size) cut-height)
-                                         ) p)
-                                       1d0)
-                                   )))
-
-      )
+      (let ((cut-height (* 0.5d0 shelf-height-true))
+            (width mesh-size))
+        (cl-mpm/setup::apply-sdf *sim* (lambda (p) (cl-mpm/setup::line-sdf
+                                                    (magicl:from-list (list (magicl:tref p 0 0)
+                                                                            (magicl:tref p 1 0)) '(2 1))
+                                                    (list (- (magicl:tref sloped-inflex-point 0 0)
+                                                             (* 0.15d0 shelf-height-true))
+                                                          shelf-height)
+                                                    (list (- (magicl:tref sloped-inflex-point 0 0)
+                                                             (* 0.15d0 shelf-height-true))
+                                                          (- shelf-height cut-height))
+                                                    width
+                                                    ))
+                                 (lambda (mp v)
+                                   (setf (cl-mpm/particle:mp-damage mp)
+                                         (exp (- (expt (+ width v) 2)))
+                                         )
+                                   ))
+        ;; (cl-mpm/setup::damage-sdf
+        ;;  *sim*
+        ;;  (lambda (p)
+        ;;    (if t ;(< (abs (- (magicl:tref p 2 0) (* 0.5d0 depth))) 20d0)
+        ;;        (funcall
+        ;;         (cl-mpm/setup::rectangle-sdf
+        ;;          (list (- (magicl:tref sloped-inflex-point 0 0)
+        ;;                   (* 0.15d0 shelf-height-true))
+        ;;                shelf-height)
+        ;;          (list (* 1.0d0 mesh-size) cut-height)
+        ;;          ) p)
+        ;;        0.99d0)
+        ;;    ))
+        ))
     (let* ((notched-depth 1.0d0)
            (undercut-angle 30d0)
            (normal (magicl:from-list (list
