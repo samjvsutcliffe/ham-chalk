@@ -211,7 +211,7 @@
            (shelf-height 100)
            (soil-boundary 20)
            (shelf-aspect 2.0)
-           (runout-aspect 4.0)
+           (runout-aspect 2.0)
            (shelf-length (* shelf-height shelf-aspect))
            (domain-length (+ shelf-length (* runout-aspect shelf-height)))
            (shelf-height (+ shelf-height soil-boundary))
@@ -366,8 +366,8 @@
          (target-time 1d1)
          (target-time-original target-time)
          (mass-scale (cl-mpm::sim-mass-scale *sim*))
-         (collapse-target-time 0.1d0)
-         (collapse-mass-scale 1d0)
+         (collapse-target-time 0.01d0)
+         (collapse-mass-scale 1d2)
          (dt (cl-mpm:sim-dt *sim*))
          (substeps (floor target-time dt))
          (settle-steps 10)
@@ -499,6 +499,6 @@
 
 (format t "Running~%")
 ;(setf lparallel:*kernel* (lparallel:make-kernel 32 :name "custom-kernel"))
-(mpi-loop)
+;(mpi-loop)
 
 

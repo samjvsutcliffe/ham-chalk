@@ -8,82 +8,11 @@
   ;(cl-mpm::update-stress-kirchoff mesh mp dt fbar)
   )
 
-
-(defmethod cl-mpm/damage::damage-model-calculate-y ((mp cl-mpm/particle::particle-chalk-brittle) dt)
-  (let ((damage-increment 0d0))
-    (with-accessors ((stress cl-mpm/particle::mp-undamaged-stress) 
-                     (strain cl-mpm/particle::mp-strain) 
-                     (damage cl-mpm/particle:mp-damage)
-                     (init-stress cl-mpm/particle::mp-initiation-stress)
-                     (critical-damage cl-mpm/particle::mp-critical-damage)
-                     (damage-rate cl-mpm/particle::mp-damage-rate)
-                     (pressure cl-mpm/particle::mp-pressure)
-                     (ybar cl-mpm/particle::mp-damage-ybar)
-                     (def cl-mpm/particle::mp-deformation-gradient)
-                     (angle cl-mpm/particle::mp-friction-angle)
-                     (c cl-mpm/particle::mp-coheasion)
-                     (nu cl-mpm/particle::mp-nu)
-                     (ft cl-mpm/particle::mp-ft)
-                     (fc cl-mpm/particle::mp-fc)
-                     (E cl-mpm/particle::mp-e)
-                     ) mp
-      (declare (double-float pressure damage))
-        (progn
-          (when (< damage 1d0)
-            (let ((cauchy-undamaged (magicl:scale stress (/ 1d0 (magicl:det def)))))
-              (multiple-value-bind (s_1 s_2 s_3) (cl-mpm/damage::principal-stresses-3d stress)
-                (multiple-value-bind (e_1 e_2 e_3) (cl-mpm/damage::principal-stresses-3d strain)
-                  (let* ((pressure-effective (* 1d0 damage pressure))
-                         ;(j2 (cl-mpm/constitutive::voigt-j2
-                         ;      (cl-mpm/utils::deviatoric-voigt cauchy-undamaged)))
-                         ;(p (+ s_1 s_2 s_3))
-                         ;(angle (* angle (/ pi 180d0)))
-
-                         ;;Good drucker-prager
-                         ;(max 
-                         ;  (s_1 (* (/ 3d0 (+ 3 (tan angle)))
-                         ;          (+ (sqrt (* 3 j2)) (* 1/3 (tan angle) p))))
-                         ;  (max p 0d0))
-                       (et (sqrt (max 0d0
-                                      (* E
-                                         (+
-                                          (* (max s_1 0d0) e_1)
-                                          (* (max s_2 0d0) e_2)
-                                          (* (max s_3 0d0) e_3)
-                                          )))))
-                       (ec (sqrt (max 0d0
-                                      (* E
-                                         (+
-                                          (* (min s_1 0d0) e_1)
-                                          (* (min s_2 0d0) e_2)
-                                          (* (min s_3 0d0) e_3)
-                                          )))))
-                       (k (/ fc ft))
-                       (s_1
-                         et
-                         ;(/
-                         ; (+ (* k et) ec)
-                         ; (+ k 1d0)
-                         ; )
-                         )
-
-                         ;(k (/ fc ft))
-                         ;(i1 (+ s_1 s_2 s_3))
-                         ;(k-factor (/ (- k 1d0)
-                         ;            (- 1d0 (* 2d0 nu))))
-                         ;(s_1 (+ (* i1 (/ k-factor (* 2d0 k)))
-                         ;       (* (/ 1d0 (* 2d0 k))
-                         ;          (sqrt (+ (expt (* k-factor i1) 2)
-                         ;                   (* (/ (* 12 k) (expt (- 1d0 nu) 2))j2)
-                         ;                   )))))
-                         )
-                    (when (> s_1 0d0)
-                      (setf damage-increment s_1)))))))
-          (when (>= damage 1d0)
-            (setf damage-increment 0d0))
-          ;;Delocalisation switch
-          (setf (cl-mpm/particle::mp-damage-y-local mp) damage-increment)
-          (setf (cl-mpm/particle::mp-local-damage-increment mp) damage-increment)))))
+(defun cl-mpm/damage::length-localisation (local-length local-length-damaged damage)
+  ;; (+ (* local-length (- 1d0 damage)) (* local-length-damaged damage))
+  ;(* local-length (max (sqrt (- 1d0 damage)) 1d-10))
+  local-length
+  )
 
 
 (defun setup-test-column (size block-size offset &optional (e-scale 1) (mp-scale 1))
@@ -113,26 +42,25 @@
                 :nu 0.24d0
                 :enable-plasticity t
 
-                ;:ft 0.70d6
-                ;:fc 4.0d6
-                :ft 10d3
-                :fc 400d3 
+                :ft 1d0
+                :fc 10d0 
                 :friction-angle 60d0
 
-                :kt-res-ratio 0d-15
+                :kt-res-ratio 1d-9
                 :kc-res-ratio 1d-2
+                ;:g-res-ratio 6.5d-3
                 :g-res-ratio 6.5d-3
-                ;:g-res-ratio 5.0d-3
 
                 :fracture-energy 3000d0
 
-                :initiation-stress 20d3
+                :initiation-stress 40d3
                 :delay-time 1d0
-                :ductility 4d0
+                :delay-exponent 3d0
+                :ductility 10d0
 
-                :critical-damage 1d0;(- 1.0d0 1d-3)
-                :damage-domain-rate 0.9d0;This slider changes how GIMP update turns to uGIMP under damage
-                :local-length 0.5d0
+                ;:critical-damage 1d0;(- 1.0d0 1d-3)
+                :damage-domain-rate 0.95d0;This slider changes how GIMP update turns to uGIMP under damage
+                :local-length 0.1d0
                 :local-length-damaged 10d-10
 
                 :psi (* 0d0 (/ pi 180))
@@ -151,19 +79,20 @@
              (angle-plastic (cl-mpm/particle::mp-phi mp-0))
              (angle-plastic-damaged (atan (* (/ rs rc) (tan angle-plastic))))
              )
-        (format t "Chalk damage growth angle: ~F~%"
-                angle-d)
-        (format t "Chalk plastic virgin angle: ~F~%"
-                (* (/ 180 pi) angle-plastic))
-        (format t "Chalk plastic residual angle: ~F~%"
-                (* (/ 180 pi) angle-plastic-damaged)))
+        (when (= (cl-mpi:mpi-comm-rank) 0)
+          (format t "Chalk damage growth angle: ~F~%"
+                  angle-d)
+          (format t "Chalk plastic virgin angle: ~F~%"
+                  (* (/ 180 pi) angle-plastic))
+          (format t "Chalk plastic residual angle: ~F~%"
+                  (* (/ 180 pi) angle-plastic-damaged))))
       ;; (let* ((mp-0 (aref (cl-mpm:sim-mps *sim*) 0))
       ;;        (fc (cl-mpm/particle::mp-fc mp-0))
       ;;        )
       ;;   (format t "Chalk damage angle: ~F~%"
       ;;           (atan (* 3 (/ (- fc ft) (+ fc ft))))))
       ;; (cl-mpm/examples/tpb::calculate-ductility-param 1d9 200d0 1d0 200d3)
-      (setf (cl-mpm:sim-allow-mp-split sim) t)
+      (setf (cl-mpm:sim-allow-mp-split sim) nil)
       (setf (cl-mpm::sim-enable-damage sim) nil)
       (setf (cl-mpm::sim-nonlocal-damage sim) t)
       (setf (cl-mpm::sim-enable-fbar sim) nil)
@@ -254,12 +183,12 @@
     ))
 
 (defun setup ()
-  (let* ((mesh-size 0.5)
+  (let* ((mesh-size 0.1)
          (mps-per-cell 2)
          (shelf-height 15.5)
          (soil-boundary 2)
-         (shelf-aspect 1.25)
-         (runout-aspect 1.25)
+         (shelf-aspect 1.0)
+         (runout-aspect 1.50)
          (shelf-length (* shelf-height shelf-aspect))
          (domain-length (+ shelf-length (* runout-aspect shelf-height)))
          (shelf-height-true shelf-height)
@@ -345,8 +274,14 @@
                                          )
                                      1d0)
                                  ))
+      (when t
       (let ((cut-height (* 0.5d0 shelf-height-true))
-            (width mesh-size))
+            (width 
+              (* 1.5d0 (cl-mpm/particle::mp-local-length (aref (cl-mpm:sim-mps *sim*) 0)))
+                            
+              ;0.5d0
+              ;(* 1d0 mesh-size)
+              ))
         (cl-mpm/setup::apply-sdf *sim* (lambda (p) (cl-mpm/setup::line-sdf
                                                     (magicl:from-list (list (magicl:tref p 0 0)
                                                                             (magicl:tref p 1 0)) '(2 1))
@@ -360,7 +295,7 @@
                                                     ))
                                  (lambda (mp v)
                                    (setf (cl-mpm/particle:mp-damage mp)
-                                         (exp (- (expt (+ width v) 2)))
+                                         (exp (- (expt (/ (+ width v) width) 4)))
                                          )
                                    ))
         ;; (cl-mpm/setup::damage-sdf
@@ -376,8 +311,8 @@
         ;;          ) p)
         ;;        0.99d0)
         ;;    ))
-        ))
-    (let* ((notched-depth 1.0d0)
+        )))
+    (let* ((notched-depth 0.5d0)
            (undercut-angle 30d0)
            (normal (magicl:from-list (list
                                       (cos (- (* pi (/ undercut-angle 180d0))))
@@ -501,29 +436,28 @@
       (format t "Sim MPs: ~a~%" (length (cl-mpm:sim-mps *sim*)))
       (format t "Decompose~%"))
     ;(cl-mpm/mpi::domain-decompose *sim*)
-	(let* ((density-ratio 0.75d0)
-			  (inflection 0.60d0)
-			  (di (* density-ratio inflection))
-			  )
+	(let* ((density-ratio 0.50d0)
+           (inflection (/ 0.40d0 density-ratio))
+		    (di (* density-ratio inflection)))
 		  (cl-mpm/mpi::domain-decompose *sim* :domain-scaler (lambda (domain)
 															   (format t "~A~%" domain)
 															   (destructuring-bind (x y z) domain
 																 (list (mapcar
 																		(lambda (p)
-                                                                          (expt p 1.3)
-																		;  (if (> p inflection)
-																		;	  (+
-																		;	   (* (/ (- 1d0 di)
-																		;			 (- 1d0 inflection)) p)
-																		;	   (-
-																		;		di
-																		;		(*
-																		;		 (/ (- 1d0 di)
-																		;			  (- 1d0 inflection))
-																		;		 inflection)
-																		;		))
-																		;	  (* density-ratio p)
-																		;			 )
+                                                                          ;(expt p 1.3)
+																		  (if (> p inflection)
+																			  (+
+																			   (* (/ (- 1d0 di)
+																					 (- 1d0 inflection)) p)
+																			   (-
+																				di
+																				(*
+																				 (/ (- 1d0 di)
+																					  (- 1d0 inflection))
+																				 inflection)
+																				))
+																			  (* density-ratio p)
+																					 )
 																				 ) x)
 																	   y z)))))
     ;(when (= rank 0))
@@ -590,19 +524,14 @@
                    (progn
                      (when (= rank 0)
                        (format t "Step ~d ~%" steps))
-                     ;(cl-mpm/output:save-vtk (merge-pathnames (format nil "output/sim_~5,'0d.vtk" *sim-step*)) *sim*)
-                     (cl-mpm/output:save-vtk (merge-pathnames (format nil "output/sim_~2,'0d_~5,'0d.vtk" rank *sim-step*)) *sim*)
+                     (when (= (mod steps 2) 0)
+                       (cl-mpm/output:save-vtk (merge-pathnames (format nil "output/sim_~2,'0d_~5,'0d.vtk" rank *sim-step*)) *sim*))
 					 (when (= rank 0)
 						(with-open-file (stream (merge-pathnames "output/timesteps.csv") :direction :output :if-exists :append)
 											   (format stream "~D,~f~%"
 													   steps
 													   *t*
 													   )))
-                     ;(let ((damage-mps (cl-mpm/mpi::mpi-sync-damage-mps *sim* (cl-mpm/mpi::mpm-sim-mpi-halo-damage-size *sim*))))
-                     ;  (cl-mpm/mpi::save-damage-vtk
-                     ;   (merge-pathnames (format nil "output/sim_damage_~2,'0d_~5,'0d.vtk" rank *sim-step*))
-                     ;   damage-mps)
-                     ;  )
                      (let ((energy-estimate 0d0))
                        (rank-0-time
                         rank
@@ -619,25 +548,20 @@
                          (setf (cl-mpm:sim-damping-factor *sim*) 0d-2))
                        (when (>= steps settle-steps)
                          (setf (cl-mpm::sim-enable-damage *sim*) t)
-                         (if (> energy-estimate 1d1)
+                         (if (> energy-estimate 1d2)
                            (progn
                              (when (= rank 0)
                                (format t "Collapse timestep~%"))
-                             ;(when (not (= target-time collapse-target-time))
                                  (setf
                                   target-time collapse-target-time
-                                  (cl-mpm::sim-mass-scale *sim*) collapse-mass-scale)
-                               ;)
-                             
-                             )
+                                  (cl-mpm::sim-mass-scale *sim*) collapse-mass-scale))
                            (progn
                              (when (= rank 0)
                                (format t "Accelerate timestep~%"))
                              (setf
                               ;dt-scale 0.8d0
                               target-time 1d0
-                              (cl-mpm::sim-mass-scale *sim*) 1d2
-                              )
+                              (cl-mpm::sim-mass-scale *sim*) 1d3)
                              ;(when (not (= target-time collapse-target-time)) 
                              ;    (setf
                              ;     target-time 1d0
@@ -663,7 +587,6 @@
                       (setf substeps substeps-e))
 
                      (setf (cl-mpm:sim-dt *sim*) (* dt-0 (sqrt (cl-mpm::sim-mass-scale *sim*))))
-
                      (setf substeps (floor target-time (cl-mpm:sim-dt *sim*)))
 
                      (when (= rank 0)
