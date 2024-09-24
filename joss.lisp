@@ -64,8 +64,8 @@
   (let* ((sim (cl-mpm/setup::make-block
                (/ 1d0 e-scale)
                (mapcar (lambda (x) (* x e-scale)) size)
-               :sim-type 'cl-mpm/mpi::mpm-sim-mpi-nodes
-               ;:sim-type 'cl-mpm/mpi::mpm-sim-mpi-nodes-damage
+               ;; :sim-type 'cl-mpm/mpi::mpm-sim-mpi-nodes
+               :sim-type 'cl-mpm/mpi::mpm-sim-mpi-nodes-damage
                ))
          (h (cl-mpm/mesh:mesh-resolution (cl-mpm:sim-mesh sim)))
          (h-x (/ h 1d0))
@@ -577,7 +577,8 @@
          (substeps (floor target-time dt))
          (settle-steps 30)
          (damp-steps 20)
-         (dt-scale 0.8d0)
+         (sim-state :settle)
+         (dt-scale 0.5d0)
          (dt-0 0d0)
          (h (cl-mpm/mesh:mesh-resolution (cl-mpm:sim-mesh *sim*)))
          (damping-0
@@ -638,20 +639,20 @@
                                                        *oobf*)))
                      (let ((energy-estimate 0d0)
                            (work 0d0)
+                           (oobf 0d0)
                            )
                        (rank-0-time
                         rank
                         (dotimes (i substeps)
                           (cl-mpm::update-sim *sim*)
                           (incf work (cl-mpm/dynamic-relaxation::estimate-power-norm *sim*))
-                          (incf *oobf* (cl-mpm/dynamic-relaxation::estimate-oobf *sim*))
-                           ;(incf energy-estimate (/ (cl-mpm/dynamic-relaxation::estimate-energy-norm *sim*) work))
-                           ;(incf energy-estimate (/ (cl-mpm/dynamic-relaxation::estimate-energy-norm *sim*) work))
-                          (incf energy-estimate (estimate-energy-crit *sim*))
+                          (incf oobf (cl-mpm/dynamic-relaxation::estimate-oobf *sim*))
+                          (incf energy-estimate (cl-mpm/dynamic-relaxation::estimate-energy-norm *sim*))
                           (setf *t* (+ *t* (cl-mpm::sim-dt *sim*)))))
 
-                       (setf energy-estimate (/ energy-estimate substeps) 
-                             *oobf* (/ *oobf* substeps) )
+                       (setf oobf (cl-mpm/dynamic-relaxation::estimate-oobf *sim*))
+                       (setf energy-estimate (abs (/ energy-estimate work)))
+                       (setf *oobf* oobf)
 
                        ;(setf *oobf* (cl-mpm/dynamic-relaxation::estimate-oobf *sim*))
                        ;(setf energy-estimate (abs (/ (cl-mpm/dynamic-relaxation::estimate-energy-norm *sim*) work)))
@@ -685,6 +686,49 @@
                          (format t "OOBF estimate: ~E~%" *oobf*)
                          (format t "Work estimate ~E~%" work)
                          )
+
+                       (when (= steps damp-steps)
+                         (setf sim-state :settle)
+                         (setf (cl-mpm:sim-damping-factor *sim*)
+                               damping-0))
+                       (when (= steps settle-steps)
+                         (setf (cl-mpm::sim-enable-damage *sim*) t)
+                         (cl-mpm::iterate-over-mps
+                          (cl-mpm:sim-mps *sim*)
+                          (lambda (mp) (setf (cl-mpm/particle::mp-enable-plasticity mp) plasticity-enabled))))
+                       (when (>= steps settle-steps)
+                         (if (or
+                              ;; t
+                              (> energy-estimate 1d-4)
+                              (> *oobf* 1d-1)
+                              )
+                             (when (not (eq sim-state :collapse))
+                               (setf sim-state :collapse)
+                               (when (= rank 0)
+                                 (format t "Changed to collapse~%")))
+                             (progn
+                               (when (not (eq sim-state :accelerate))
+                                 (when (= rank 0)
+                                   (format t "Changed to accelerate~%"))
+                                 (setf sim-state :accelerate)
+                                 (cl-mpm:iterate-over-mps
+                                  (cl-mpm:sim-mps *sim*)
+                                  (lambda (mp)
+                                    (cl-mpm/fastmaths::fast-zero (cl-mpm/particle:mp-velocity mp)))))))
+                         (case sim-state
+                           (:accelerate
+                            (when (= rank 0)
+                              (format t "Accelerate timestep~%"))
+                            (setf
+                             target-time 1d0
+                             (cl-mpm::sim-mass-scale *sim*) 1d4))
+                           (:collapse
+                            (when (= rank 0)
+                              (format t "Collapse timestep~%"))
+                            (setf
+                             target-time collapse-target-time
+                             (cl-mpm::sim-mass-scale *sim*) collapse-mass-scale))))
+
 
 
                        (when (>= steps settle-steps)
@@ -754,7 +798,8 @@
                      ;(plot *sim*)
                      (swank.live:update-swank))))))
 
-(defparameter *output-directory* (merge-pathnames "/nobackup/rmvn14/ham-chalk/output/"))
+;(defparameter *output-directory* (merge-pathnames "/nobackup/rmvn14/ham-chalk/output/"))
+(defparameter *output-directory* (merge-pathnames "./output/"))
 (ensure-directories-exist *output-directory*)
 (setf lparallel:*kernel* (lparallel:make-kernel 16 :name "custom-kernel"))
 ;(defparameter *run-sim* nil)
