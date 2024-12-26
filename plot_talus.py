@@ -1,9 +1,9 @@
-PDF_OUTPUT = False#True
+PDF_OUTPUT = False
 import matplotlib as mpl
-if PDF_OUTPUT:
-    mpl.use('pdf')
-else:
-    mpl.use('Agg')
+#if PDF_OUTPUT:
+#    mpl.use('pdf')
+#else:
+#    mpl.use('Agg')
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -26,6 +26,14 @@ from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
 from matplotlib import cm
 from multiprocessing import Pool
+plt.style.use("seaborn-paper")
+plt.rc('font', family='serif', serif='Times')
+# plt.rc('text', usetex=True)
+plt.rc('xtick', labelsize=8)
+plt.rc('ytick', labelsize=8)
+plt.rc('axes', labelsize=8)
+width = 3.487
+height = width / 1.618
 
 NO_OVERWRITE = False
 
@@ -76,17 +84,9 @@ height = width / 1.618
 water_height = 236
 xlim = [0,2600]
 ylim = [0,500]
-#output-0.5-strong/  output-0.5-weak/
+#output-1.5-strong/  output-0.5-weak/
+output_dir = "output-fine/"
 output_dir = "/mnt/c/Temp/output-paper-lowgf/"
-with open(output_dir+"settings.json") as f:
-    json_settings = json.load(f)
-    #print("Water level:{}".format(json_settings["OCEAN-HEIGHT"]))
-    #print("Domain size:{}".format(json_settings["DOMAIN-SIZE"]))
-    #water_height = json_settings["OCEAN-HEIGHT"]
-    water_height = 0
-    xlim = [0,json_settings["DOMAIN-SIZE"][0]]
-    ylim = [0,json_settings["DOMAIN-SIZE"][1]]
-    #ylim[0] = 20
 
 
 ice_height = 200
@@ -108,23 +108,46 @@ damage = []
 full_data = []
 
 timesteps = pd.read_csv(output_dir+"timesteps.csv")
-if not NO_OVERWRITE:
-    subprocess.run("rm ./outframes/*", shell=True)
+#if not NO_OVERWRITE:
+#    subprocess.run("rm ./outframes/*", shell=True)
 
-fig = plt.figure(figsize=(16,9),dpi=200)
-def get_plot(i,fname):
-    outname = "outframes/frame_{:05}.png".format(i)
+def load_csv(name):
+    pre = pd.read_csv(name)
+    pre = np.array([pre["x"].values,pre["y"].values]).transpose()
+    pre = pre[1:,:] - pre[0]
+    pre[:,1] = pre[:,1] * (1-(1.0/ 15.5))
+    y_offset = 15.5+1
+    x_offset = -1.6
+    pre[:,0] = pre[:,0]+x_offset
+    pre[:,1] = pre[:,1]+y_offset
+    return pre
+
+xoffset = (15.5 * 1)
+
+with open(output_dir+"settings.json") as f:
+    json_settings = json.load(f)
+    water_height = 0
+    xlim = [0-xoffset,json_settings["DOMAIN-SIZE"][0]-xoffset]
+    ylim = [0,json_settings["DOMAIN-SIZE"][1]]
+    #ylim[0] = 20
+
+scale= 3.487/16
+def get_plot(i):
+    fig = plt.figure(figsize=(16*scale,9*scale),dpi=200)
+    fname = files_csvs[i]
+    outname = "outframes/frame_{:05}.pdf".format(i)
     if NO_OVERWRITE and os.path.isfile(outname):
         return
     df = get_data_all(output_dir,fname)
+    df["coord_x"] = df["coord_x"] - xoffset
     print("Plot frame {}".format(i),flush=True)
     ax = fig.add_subplot(111,aspect="equal")
     #df = full_data[i]
     patch_list=[]
-    patch = Rectangle(xy=(0,0) ,width=xlim[1], height=water_height,color="blue")
-    patch_sea = [patch]
-    ps = PatchCollection(patch_sea)
-    ax.add_collection(ps)
+    # patch = Rectangle(xy=(0,0) ,width=xlim[1], height=water_height,color="blue")
+    # patch_sea = [patch]
+    # ps = PatchCollection(patch_sea)
+    # ax.add_collection(ps)
 
     for a_x, a_y,lx,ly,damage in zip(df["coord_x"],
                                      df["coord_y"],
@@ -136,24 +159,31 @@ def get_plot(i,fname):
         patch_list.append(patch)
     p = PatchCollection(patch_list, cmap=cm.jet, alpha=1)
     p.set_array(df["damage"])
-    # p.set_clim([0,1.0])
+    p.set_clim([0,1.0])
     ax.add_collection(p)
-    fig.colorbar(p,location="bottom",label="damage")
+    # fig.colorbar(p,location="bottom",label="damage")
 
-    ax.set_xlim(xlim)
+    ax.set_xlim([-15.5,15.5])
+    #ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     plt.title("t = {:.2f}s - {}".format(
         timesteps["time"].iloc[i],
         timesteps["step-type"].iloc[i]
         ))
-    plt.savefig("outframes/frame_{:05}.png".format(i))
-    plt.clf()
+    pre = load_csv("./data/pre.csv")
+    post = load_csv("./data/post.csv")
+    fail = load_csv("./data/fail.csv")
+    plt.plot(pre[:,0],pre[:,1],label="Pre")
+    plt.plot(post[:,0],post[:,1],label="Post")
+    plt.plot(fail[:,0],fail[:,1],label="Failure surface")
+    plt.legend()
+    plt.savefig("outframes/frame_{:05}.pdf".format(i))
+    # plt.clf()
 
-def wrapper(x):
-        get_plot(x[0],x[1])
-if __name__ == '__main__':
-    with Pool(16) as p:
-        p.map(wrapper, enumerate(files_csvs))
-cmd_str = "ffmpeg -y -framerate 60 -pattern_type glob -i 'outframes/*.png' -c:v libx264 -pix_fmt yuv420p out.mp4"
-subprocess.run(cmd_str, shell=True)
-
+i = 1
+# get_plot(1)
+#get_plot(15)
+get_plot(40)
+get_plot(400)
+# get_plot(100)
+plt.show()
