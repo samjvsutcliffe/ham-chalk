@@ -85,7 +85,7 @@ water_height = 236
 xlim = [0,2600]
 ylim = [0,500]
 #output-0.5-strong/  output-0.5-weak/
-output_dir = "/mnt/c/Temp/output-paper-lowgf/"
+output_dir = "/mnt/c/Temp/output-paper/"
 
 
 ice_height = 200
@@ -152,9 +152,11 @@ def get_plot(i):
     ax.add_collection(p)
     # fig.colorbar(p,location="bottom",label="damage")
 
-    ax.set_xlim([-15.5,15.5])
+    #ax.set_xlim([-15.5,15.5])
+    ax.set_xlim([-8,1])
+    ax.set_ylim([0,9])
     #ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
+    #ax.set_ylim(ylim)
     plt.title("t = {:.2f}s - {}".format(
         timesteps["time"].iloc[i],
         timesteps["step-type"].iloc[i]
@@ -163,7 +165,9 @@ def get_plot(i):
     plt.clf()
 
 i = 1
-get_plot(0)
-get_plot(40)
 get_plot(52)
-get_plot(400)
+# get_plot(89)
+# get_plot(30)
+# get_plot(50)
+# get_plot(70)
+# get_plot(100)
