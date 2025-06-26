@@ -26,8 +26,16 @@ from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
 from matplotlib import cm
 from multiprocessing import Pool
+plt.style.use("seaborn-paper")
+plt.rc('font', family='serif', serif='Times')
+# plt.rc('text', usetex=True)
+plt.rc('xtick', labelsize=8)
+plt.rc('ytick', labelsize=8)
+plt.rc('axes', labelsize=8)
+width = 3.487
+height = width / 1.618
 
-NO_OVERWRITE = True
+NO_OVERWRITE = False
 
 
 def get_data(filename):
@@ -77,16 +85,7 @@ water_height = 236
 xlim = [0,2600]
 ylim = [0,500]
 #output-0.5-strong/  output-0.5-weak/
-output_dir = "/nobackup/rmvn14/ham-chalk/output-paper-erode/"
-with open(output_dir+"settings.json") as f:
-    json_settings = json.load(f)
-    #print("Water level:{}".format(json_settings["OCEAN-HEIGHT"]))
-    #print("Domain size:{}".format(json_settings["DOMAIN-SIZE"]))
-    #water_height = json_settings["OCEAN-HEIGHT"]
-    water_height = 0
-    xlim = [0,json_settings["DOMAIN-SIZE"][0]]
-    ylim = [0,json_settings["DOMAIN-SIZE"][1]]
-    #ylim[0] = 20
+output_dir = "/mnt/c/Temp/output-paper/"
 
 
 ice_height = 200
@@ -111,20 +110,33 @@ timesteps = pd.read_csv(output_dir+"timesteps.csv")
 if not NO_OVERWRITE:
     subprocess.run("rm ./outframes/*", shell=True)
 
-fig = plt.figure(figsize=(16,9),dpi=200)
-def get_plot(i,fname):
-    outname = "outframes/frame_{:05}.png".format(i)
+
+xoffset = (15.5 * 1)
+
+with open(output_dir+"settings.json") as f:
+    json_settings = json.load(f)
+    water_height = 0
+    xlim = [0-xoffset,json_settings["DOMAIN-SIZE"][0]-xoffset]
+    ylim = [0,json_settings["DOMAIN-SIZE"][1]]
+    #ylim[0] = 20
+
+scale= 3.487/16
+fig = plt.figure(figsize=(16*scale,9*scale),dpi=200)
+def get_plot(i):
+    fname = files_csvs[i]
+    outname = "outframes/frame_{:05}.pdf".format(i)
     if NO_OVERWRITE and os.path.isfile(outname):
         return
     df = get_data_all(output_dir,fname)
+    df["coord_x"] = df["coord_x"] - xoffset
     print("Plot frame {}".format(i),flush=True)
     ax = fig.add_subplot(111,aspect="equal")
     #df = full_data[i]
     patch_list=[]
-    patch = Rectangle(xy=(0,0) ,width=xlim[1], height=water_height,color="blue")
-    patch_sea = [patch]
-    ps = PatchCollection(patch_sea)
-    ax.add_collection(ps)
+    # patch = Rectangle(xy=(0,0) ,width=xlim[1], height=water_height,color="blue")
+    # patch_sea = [patch]
+    # ps = PatchCollection(patch_sea)
+    # ax.add_collection(ps)
 
     for a_x, a_y,lx,ly,damage in zip(df["coord_x"],
                                      df["coord_y"],
@@ -136,24 +148,26 @@ def get_plot(i,fname):
         patch_list.append(patch)
     p = PatchCollection(patch_list, cmap=cm.jet, alpha=1)
     p.set_array(df["damage"])
-    # p.set_clim([0,1.0])
+    p.set_clim([0,1.0])
     ax.add_collection(p)
-    fig.colorbar(p,location="bottom",label="damage")
+    # fig.colorbar(p,location="bottom",label="damage")
 
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
+    #ax.set_xlim([-15.5,15.5])
+    ax.set_xlim([-8,1])
+    ax.set_ylim([0,9])
+    #ax.set_xlim(xlim)
+    #ax.set_ylim(ylim)
     plt.title("t = {:.2f}s - {}".format(
         timesteps["time"].iloc[i],
         timesteps["step-type"].iloc[i]
         ))
-    plt.savefig("outframes/frame_{:05}.png".format(i))
+    plt.savefig("outframes/frame_{:05}.pdf".format(i))
     plt.clf()
 
-def wrapper(x):
-        get_plot(x[0],x[1])
-if __name__ == '__main__':
-    with Pool(16) as p:
-        p.map(wrapper, enumerate(files_csvs))
-cmd_str = "ffmpeg -y -framerate 60 -pattern_type glob -i 'outframes/*.png' -c:v libx264 -pix_fmt yuv420p out.mp4"
-subprocess.run(cmd_str, shell=True)
-
+i = 1
+get_plot(52)
+# get_plot(89)
+# get_plot(30)
+# get_plot(50)
+# get_plot(70)
+# get_plot(100)
